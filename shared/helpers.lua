@@ -33,6 +33,24 @@ function GetClosestModelWithinDistance(maxDistance, items)
     return closestModelCoords, closestModelHandle, closestTextOffset
 end
 
+function SetupModel(model)
+    RequestModel(model)
+    while not HasModelLoaded(model) do
+        RequestModel(model)
+        Citizen.Wait(0)
+    end
+    SetModelAsNoLongerNeeded(model)
+end
+
+function RandomLimited(min, max, limit)
+    local result
+    repeat
+        result = math.random(min, max)
+    until math.abs(result) >= limit
+    print(result)
+    return result
+end
+
 function DrawNotification3D(coords, text, seconds, color)
     local startTime = GetGameTimer()
     local duration = seconds * 1000
