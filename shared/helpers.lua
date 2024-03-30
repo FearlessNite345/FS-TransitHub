@@ -1,36 +1,86 @@
-function GetClosestModelWithinDistance(maxDistance, items)
-    local playerPed = PlayerPedId()
-    local playerCoords = GetEntityCoords(playerPed)
+function ShowInfo(infoText, yPos, scale)
+    DrawText2D(0.015, yPos, infoText, scale, false)
+end
 
-    local closestModelCoords, closestModelHandle, closestTextOffset
-    local closestDistance = maxDistance + 1
+function GetNumSeats(veh)
+    local numSeats = GetVehicleModelNumberOfSeats(GetEntityModel(veh))
+    if not numSeats then
+        numSeats = 0
+    end
+    return numSeats
+end
 
-    local function checkAndUpdateClosest(modelHash, textOffset)
-        local modelHandle = GetClosestObjectOfType(playerCoords.x,
-                                                   playerCoords.y,
-                                                   playerCoords.z, 10.0,
-                                                   modelHash, false, false,
-                                                   false)
+function GetClosestVehicleDoor(ped, veh)
+    local pos = GetEntityCoords(ped, false)
+    local distance = 1000
+    local dist = 0
+    local closestDoor = nil
 
-        if DoesEntityExist(modelHandle) then
-            local modelCoords = GetEntityCoords(modelHandle)
-            local distance = #(playerCoords - modelCoords)
-
-            if distance <= maxDistance and distance < closestDistance then
-                closestModelCoords = modelCoords
-                closestModelHandle = modelHandle
-                closestTextOffset = textOffset
-                closestDistance = distance
+    for i = 0, GetNumSeats(veh) do
+        local doorCoords = GetEntryPositionOfDoor(veh, i)
+        dist = #(pos - doorCoords)
+        if dist < distance then
+            local seatIndex = i - 1
+            if seatIndex == 0 or seatIndex == -1 then
+                goto continue
             end
+
+            local leftSideDoor = seatIndex == -1 or seatIndex == 1
+
+            if IsVehicleSeatFree(veh, seatIndex) then
+                closestDoor = {
+                    index = seatIndex,
+                    coords = doorCoords,
+                    leftSide = leftSideDoor
+                }
+                distance = dist
+            end
+        end
+        ::continue::
+    end
+
+    return closestDoor
+end
+
+function GetDistanceToDestText(yourCoords, destCoords)
+    local dist = math.floor(#(yourCoords - destCoords)) -- Round down the distance value
+    local distText = ""
+    if ShouldUseMetricMeasurements() then
+        if dist <= 1000 then
+            distText = dist .. "m"
+        else
+            distText = tonumber(string.format("%.2f", dist / 1000)) .. "km"
+        end
+    else
+        dist = math.floor((dist * 1.094) * 3) -- Distance in feet
+        if dist <= 500 then
+            distText = dist .. "ft"
+        else
+            distText = tonumber(string.format("%.2f", dist / 5280)) .. "mi"
         end
     end
 
-    for _, modelPropData in ipairs(items) do
-        checkAndUpdateClosest(modelPropData.model,
-                              modelPropData.textHeightOffset)
+    return distText
+end
+
+function GetFormatedDistanceText(distanceInMeters)
+    local distText = ""
+    if ShouldUseMetricMeasurements() then
+        if distanceInMeters <= 1000 then
+            distText = distanceInMeters .. "m"
+        else
+            distText = tonumber(string.format("%.2f", distanceInMeters / 1000)) .. "km"
+        end
+    else
+        distanceInMeters = math.floor((distanceInMeters * 1.094) * 3) -- Distance in feet
+        if distanceInMeters <= 500 then
+            distText = distanceInMeters .. "ft"
+        else
+            distText = tonumber(string.format("%.2f", distanceInMeters / 5280)) .. "mi"
+        end
     end
 
-    return closestModelCoords, closestModelHandle, closestTextOffset
+    return distText
 end
 
 function SetupModel(model)
