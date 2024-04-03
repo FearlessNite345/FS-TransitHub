@@ -1,21 +1,21 @@
 local framework = "custom" -- "bigdaddy" or "custom"
-local reason = "Ride Service"
+local reason = "Transit Service"
 local currencySymbol = "$"
 
-RegisterNetEvent("FearlessStudios-SwiftRideService:MoneyCheck", function(playerId, cost)
+RegisterNetEvent("FearlessStudios-SwiftRideService:MoneyCheck", function(playerId, cost, destination)
     local src = source
 
     if framework == "bigdaddy" then
         local account = exports["BigDaddy-Money"]:GetAccounts(src, playerId, -1)
         local data = json.decode(account)
         if (tonumber(data.bank) <= cost) then
-            TriggerClientEvent("FearlessStudios-SwiftRideService:MoneyCheckResult", src, false)
+            TriggerClientEvent("FearlessStudios-SwiftRideService:MoneyCheckResult", src, false, destination)
         else
-            TriggerClientEvent("FearlessStudios-SwiftRideService:MoneyCheckResult", src, true)
+            TriggerClientEvent("FearlessStudios-SwiftRideService:MoneyCheckResult", src, true, destination)
         end
     elseif framework == "custom" then
         -- Put your framework stuff here
-        TriggerClientEvent("FearlessStudios-SwiftRideService:MoneyCheckResult", src, true)
+        TriggerClientEvent("FearlessStudios-SwiftRideService:MoneyCheckResult", src, true, destination)
     end
 end)
 

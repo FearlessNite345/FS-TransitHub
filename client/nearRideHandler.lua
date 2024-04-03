@@ -54,7 +54,7 @@ Citizen.CreateThread(function()
                 local playerPed = PlayerPedId()
                 local closestDoor = GetClosestVehicleDoor(playerPed, closestRideVehicle)
 
-                if IsControlJustPressed(0, Config.getInKey) then
+                if IsControlJustPressed(0, Config.getInKey) and closestDoor ~= nil then
                     TaskEnterVehicle(playerPed, closestRideVehicle, 10000, closestDoor.index, 2.0, 1, 0)
 
                     while not IsPedInAnyVehicle(playerPed, false) do
@@ -72,7 +72,7 @@ Citizen.CreateThread(function()
                 '~w~[~r~' .. GetKeyStringFromKeyID(Config.cancelKey) .. '~w~]' .. Config.Locales["exitEarlyPassenger"],
                 0.6, true)
 
-            if IsControlJustPressed(0, Config.cancelKey) then
+            if IsControlJustPressed(0, Config.cancelKey) and closestRideVehicle ~= nil then
                 TaskVehicleTempAction(GetPedInVehicleSeat(closestRideVehicle, -1), closestRideVehicle, 1, 30)
                 TaskLeaveVehicle(PlayerPedId(), closestRideVehicle, 0)
                 TriggerServerEvent("FearlessStudios-SwiftRideService:RemovePlayerFromRide", currentRideOwner)

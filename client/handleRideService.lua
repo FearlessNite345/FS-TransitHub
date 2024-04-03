@@ -496,6 +496,11 @@ TriggerEvent('chat:addSuggestion', '/callride', 'Will call a ride vehicle to you
 })
 
 RegisterNetEvent("FearlessStudios-SwiftRideService:MoneyCheckResult", function(hasMoney)
+    print(IsHeliService)
+    if IsHeliService then
+        return
+    end
+
     if hasMoney then
         continueRideService()
     else

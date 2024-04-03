@@ -1,15 +1,16 @@
 Config = {}
 
 -- General Settings --
-Config.checkForUpdate = true -- Check for Updates
-Config.rideBanter = true     -- Enable driver banter
+Config.checkForUpdate = true        -- Check for Updates
+Config.rideBanter = true            -- Enable driver banter
+Config.requireNearHeliPad = false   -- Require the player to be near a helipad to use Heli Service
 
 -- Money Settings --
-Config.useMoney = false               -- Charge for rides
+Config.useMoney = true               -- Charge for rides
 Config.costPerMileTaxi = 2.00         -- Cost per Mile for taxi (cents)
 Config.costPerMileSwift = 5.00        -- Cost per Mile for swift (cents)
 Config.costPerMileSwiftLuxury = 40.00 -- Cost per Mile for luxury swift (cents)
-Config.costPerMileHeli = 95.00        -- Cost per Mile for luxury swift (cents)
+Config.costPerMileHeli = 500.00        -- Cost per Mile for luxury swift (cents)
 
 -- Ride Settings --
 Config.cancelRadius = 40.0 -- Recommended cancel radius (meters)
@@ -37,7 +38,8 @@ Config.swiftLuxuryVehicles = {
 -- Swift Luxury Vehicles: Must be 4+ door vehicles
 Config.heliVehicles = {
     "maverick",
-    "frogger"
+    "frogger",
+    "buzzard2"
 }
 
 -- Key Bindings --
@@ -52,6 +54,7 @@ Config.Locales = {
     ["errorCreateVehicle"] = "Error creating vehicle. Please try again.",
     ["noSeatsAvailable"] = "No seats available. Cancelling...",
     ["leftServiceArea"] = "Left service area. Cancelling...",
+    ["notNearPickupZone"] = "Not near the pickup zone.",
     ["serviceAlreadyActive"] = "Service is already active.",
     ["arrivedDestination"] = "You have arrived at your destination.",
     ["chargedRideCost"] = "Your payment: $",

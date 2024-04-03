@@ -17,6 +17,7 @@ server_scripts {
 }
 
 shared_scripts {
-    'shared/*.lua',
-    'config/*.lua'
+  'shared/*.lua',
+  'config/*.lua',
+  'config/*.json'
 }

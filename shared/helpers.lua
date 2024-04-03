@@ -1,3 +1,11 @@
+function table.keys(tbl)
+    local keys = {}
+    for key, _ in pairs(tbl) do
+        table.insert(keys, key)
+    end
+    return keys
+end
+
 function ShowInfo(infoText, yPos, scale)
     DrawText2D(0.015, yPos, infoText, scale, false)
 end

@@ -3,11 +3,16 @@ local waypoint
 local pilot
 local heli
 local heliBlip
+local flareObject
 local noMoney = false
 local realCost = 0
 local estimatedCost = 0
 local heliSpeedToPlayer = 30.0
-local heliSpeedToWaypoint = 50.0
+local heliSpeedToWaypoint = 35.0
+
+local HeliPadLocations = {}
+
+IsHeliService = false
 
 local function calculateRideCost(yourCoords, destCoords)
     estimatedCost = (Config.costPerMileHeli * math.floor(#(yourCoords - destCoords) / 1609)) * 5
@@ -37,6 +42,7 @@ local function endRide(playerPed)
     ClearVehicleTasks(heli)
 
     IsServiceActive = false
+    IsHeliService = false
     IsCooldownActive = true
 
     if Config.useMoney then
@@ -85,6 +91,7 @@ local function cancelRide(playerPed, isCancelRadiusTrigger)
     ClearVehicleTasks(heli)
 
     IsServiceActive = false
+    IsHeliService = false
     IsCooldownActive = true
 
     if noMoney and Config.useMoney then
@@ -100,6 +107,9 @@ local function cancelRide(playerPed, isCancelRadiusTrigger)
 
     DeleteEntity(pilot)
     DeleteEntity(heli)
+    if DoesEntityExist(flareObject) then
+        DeleteEntity(flareObject)
+    end
 
     heli = nil
     heliBlip = nil
@@ -130,7 +140,7 @@ local function spawnHeliLogic(playerCoords, heliModel, pilotPed)
     heliBlip = AddBlipForEntity(heli)
     SetVehicleLights(heli, 2)
 
-    SetBlipSprite(heliBlip, 64)
+    SetBlipSprite(heliBlip, 422)
     SetBlipDisplay(heliBlip, 2)
     SetBlipScale(heliBlip, 0.8)
     SetBlipColour(heliBlip, 3)
@@ -143,7 +153,7 @@ local function spawnHeliLogic(playerCoords, heliModel, pilotPed)
     end
 end
 
-local function continueAirService()
+local function continueAirService(flyToDestinationCoords)
     local playerPed = PlayerPedId()
 
     while true do
@@ -175,15 +185,17 @@ local function continueAirService()
         end
     end
 
-    local z = GetHeightmapTopZForPosition(waypoint.x, waypoint.y)
 
-    TaskHeliMission(pilot, heli, 0, 0, waypoint.x, waypoint.y, z + 50.0, 4, heliSpeedToWaypoint, -1.0,
+    TaskHeliMission(pilot, heli, 0, 0, flyToDestinationCoords.x, flyToDestinationCoords.y,
+        flyToDestinationCoords.z, 4, heliSpeedToWaypoint, -1.0,
         -1.0, 10, 10,
         5.0, 32)
+
 
     local previousPosition = GetEntityCoords(heli, false).xy -- Store the initial position
 
     local totalDistanceMeters = 0.0
+    local totalDistanceMiles = 0.0
 
     while IsVehicleOnAllWheels(heli) do
         Citizen.Wait(500)
@@ -198,7 +210,9 @@ local function continueAirService()
         end
 
         local heliCoords = GetEntityCoords(heli, false)
-        local distanceToHeli = #(heliCoords - waypoint)
+        local distanceToHeli
+
+        distanceToHeli = #(heliCoords - flyToDestinationCoords)
 
         local ranges = { 100, 200, 400 }
         local speeds = { 5.0, 10.0, heliSpeedToWaypoint / 2 }
@@ -214,9 +228,12 @@ local function continueAirService()
         local currentPosition = GetEntityCoords(heli, false).xy -- Get current position
         local dist = #(previousPosition - currentPosition)      -- Calculate distance from previous position
         totalDistanceMeters += dist
+        totalDistanceMiles += dist / 1609                       -- Update total distance
         previousPosition = currentPosition                      -- Update previous position
 
         local drivenDistText = GetFormatedDistanceText(totalDistanceMeters)
+
+        realCost = math.floor(Config.costPerMileHeli * totalDistanceMiles * 100 + 0.5) / 100
 
         if Config.useMoney then
             ShowInfo("Current Cost: $" .. realCost, 0.72, 0.5)
@@ -228,31 +245,43 @@ local function continueAirService()
     endRide(playerPed)
 end
 
-local function startAirService()
+local function startAirService(flyToPickupCoords, flyToDestinationCoords)
     local playerPed = PlayerPedId()
-    local playerCoords = GetEntityCoords(playerPed, false)
 
-    spawnHeliLogic(playerCoords, Config.heliVehicles[math.random(1, #Config.heliVehicles)], "s_m_m_pilot_01")
+    spawnHeliLogic(flyToPickupCoords, Config.heliVehicles[math.random(1, #Config.heliVehicles)], "s_m_m_pilot_01")
 
     if heli ~= nil and heliBlip ~= nil and pilot ~= nil then
         IsServiceActive = true
+        IsHeliService = true
 
         SetBlockingOfNonTemporaryEvents(pilot, true)
         SetEntityInvincible(pilot, true)
         SetHeliBladesFullSpeed(heli)
         SetHeliTurbulenceScalar(heli, 0.0)
+        SetHelicopterRollPitchYawMult(heli, 0.0)
 
-        radiusBlip = AddBlipForRadius(playerCoords.x, playerCoords.y, playerCoords.z,
+        radiusBlip = AddBlipForRadius(flyToPickupCoords.x, flyToPickupCoords.y, flyToPickupCoords.z,
             Config.cancelRadius)
         SetBlipColour(radiusBlip, 5)
         SetBlipAlpha(radiusBlip, 128)
 
         SetDriverAbility(pilot, 1.0)
         SetDriverAggressiveness(pilot, 0.0)
-        TaskHeliMission(pilot, heli, 0, 0, playerCoords.x, playerCoords.y, playerCoords.z + 50.0, 4, heliSpeedToPlayer,
+
+        TaskHeliMission(pilot, heli, 0, 0, flyToPickupCoords.x, flyToPickupCoords.y, flyToPickupCoords.z, 4,
+            heliSpeedToPlayer,
             -1.0,
             -1.0, 10, 10,
             5.0, 32)
+
+        local flareHash = GetHashKey("weapon_flare");
+        RequestModel(`w_am_flare`);
+        RequestWeaponAsset(flareHash, 31, 0);
+
+        flareObject = CreateWeaponObject(flareHash, 1, flyToPickupCoords.x, flyToPickupCoords.y, flyToPickupCoords.z,
+            true, 0.0, 0)
+        PlaceObjectOnGroundProperly(flareObject);
+        SetEntityRotation(flareObject, 90.0, 0.0, 0.0, 2, false)
 
         while not IsVehicleOnAllWheels(heli) do
             Citizen.Wait(0)
@@ -264,7 +293,7 @@ local function startAirService()
             end
 
             local heliCoords = GetEntityCoords(heli, false)
-            local distanceToHeli = #(heliCoords - playerCoords)
+            local distanceToHeli = #(heliCoords - flyToPickupCoords)
 
             local ranges = { 100, 200, 400 }
             local speeds = { 5.0, 10.0, heliSpeedToPlayer / 2 }
@@ -279,12 +308,15 @@ local function startAirService()
 
             DrawText2D(0.5, 0.85,
                 '~w~[~r~' .. GetKeyStringFromKeyID(Config.cancelKey) .. '~w~]' .. Config.Locales["cancelRide"], 0.6, true)
-            DrawMarker(34, playerCoords.x, playerCoords.y, playerCoords.z, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 2.0, 2.0, 2.0,
+            --[[             DrawMarker(34, flyToPickupCoords.x, flyToPickupCoords.y, flyToPickupCoords.z, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                2.0, 2.0, 2.0,
                 255, 0, 0, 100, false, true, 2, false, "", "", false)
-            DrawMarker(25, playerCoords.x, playerCoords.y, playerCoords.z - 0.9, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 2.0, 2.0,
-                2.0, 255, 0, 0, 100, false, true, 2, false, "", "", false)
+            DrawMarker(25, flyToPickupCoords.x, flyToPickupCoords.y, flyToPickupCoords.z - 0.9, 0.0, 0.0, 0.0, 0.0, 0.0,
+                0.0, 2.0,
+                2.0,
+                2.0, 255, 0, 0, 100, false, true, 2, false, "", "", false) ]]
 
-            local cancelDistance = #(GetEntityCoords(playerPed, false) - playerCoords)
+            local cancelDistance = #(GetEntityCoords(playerPed, false) - flyToPickupCoords)
             if cancelDistance > Config.cancelRadius then
                 DrawNotification2D(Config.Locales["leftServiceArea"], 2, "r")
                 cancelRide(playerPed, true)
@@ -296,6 +328,8 @@ local function startAirService()
                 return
             end
         end
+
+        DeleteEntity(flareObject)
 
         while true do
             Citizen.Wait(0)
@@ -333,38 +367,59 @@ local function startAirService()
 
         TriggerServerEvent("FearlessStudios-SwiftRideService:RegisterRideForClients", VehToNet(heli), PlayerPedId())
 
-        while true do
-            Citizen.Wait(0)
-            if IsWaypointActive() then
-                waypoint = GetBlipCoords(GetFirstBlipInfoId(8))
-                break
+        if flyToDestinationCoords == nil then
+            while true do
+                Citizen.Wait(0)
+                if IsWaypointActive() then
+                    waypoint = GetBlipCoords(GetFirstBlipInfoId(8))
+                    break
+                end
+
+                DrawText2D(0.5, 0.85, '~w~' .. Config.Locales["setWaypoint"], 0.6, true)
+                DrawText2D(0.5, 0.9,
+                    '~w~[~r~' .. GetKeyStringFromKeyID(Config.cancelKey) .. '~w~]' .. Config.Locales["cancelRide"], 0.6,
+                    true)
+
+                if IsControlJustPressed(0, Config.cancelKey) then
+                    cancelRide(playerPed, false)
+                    return
+                end
+
+                if not IsPedInAnyVehicle(playerPed, false) then
+                    cancelRide(playerPed, false)
+                    return
+                end
             end
 
-            DrawText2D(0.5, 0.85, '~w~' .. Config.Locales["setWaypoint"], 0.6, true)
-            DrawText2D(0.5, 0.9,
-                '~w~[~r~' .. GetKeyStringFromKeyID(Config.cancelKey) .. '~w~]' .. Config.Locales["cancelRide"], 0.6, true)
-
-            if IsControlJustPressed(0, Config.cancelKey) then
-                cancelRide(playerPed, false)
+            if waypoint == nil then
                 return
             end
-
-            if not IsPedInAnyVehicle(playerPed, false) then
-                cancelRide(playerPed, false)
-                return
-            end
-        end
-
-        if waypoint == nil then
-            return
         end
 
         if Config.useMoney then
-            calculateRideCost(GetEntityCoords(heli, false), waypoint)
 
-            TriggerServerEvent("FearlessStudios-SwiftRideService:MoneyCheck", PlayerPedId(), estimatedCost)
+            if flyToDestinationCoords then
+                calculateRideCost(GetEntityCoords(heli, false), flyToDestinationCoords)
+                TriggerServerEvent("FearlessStudios-SwiftRideService:MoneyCheck", PlayerPedId(), estimatedCost,
+                    flyToDestinationCoords)
+            else
+                calculateRideCost(GetEntityCoords(heli, false), waypoint)
+
+                local z = GetHeightmapTopZForPosition(waypoint.x, waypoint.y)
+                local flyToCoords = vector3(waypoint.x, waypoint.y, z)
+
+                TriggerServerEvent("FearlessStudios-SwiftRideService:MoneyCheck", PlayerPedId(), estimatedCost,
+                    flyToCoords)
+            end
         else
-            continueAirService()
+            if flyToDestinationCoords then
+                continueAirService(flyToDestinationCoords)
+            else
+                local z = GetHeightmapTopZForPosition(waypoint.x, waypoint.y)
+                local flyToCoords = vector3(waypoint.x, waypoint.y, z)
+
+                continueAirService(flyToCoords)
+            end
         end
     else
         print("Error creating vehicle! Please try again")
@@ -379,23 +434,94 @@ RegisterCommand("callheli", function(source, args, rawCommand)
     end
 
     if IsCooldownActive then
-        DrawNotification2D(Config.Locales["cooldownActive"], 1, "r")
+        DrawNotification2D(Config.Locales["cooldownActive"], 2, "r")
         return
     end
 
     if IsServiceActive then
-        DrawNotification2D(Config.Locales["serviceAlreadyActive"], 5, "r")
+        DrawNotification2D(Config.Locales["serviceAlreadyActive"], 2, "r")
         return
     end
 
     if IsPedInAnyVehicle(PlayerPedId(), true) then
-        DrawNotification2D(Config.Locales["inVehicle"], 5, "r")
+        DrawNotification2D(Config.Locales["inVehicle"], 2, "r")
         return
     end
 
-    startAirService()
+    if Config.requireNearHeliPad then
+        if args[1] == nil or args[2] == nil then
+            DrawNotification2D("You must provide a pickup and destination location.", 2, "r")
+            return
+        end
+    end
+
+    if args[1] ~= nil and args[2] ~= nil then
+        if args[1] == args[2] then
+            DrawNotification2D("Unable to have same pickup and destination.", 2, "r")
+            return
+        elseif args[1] == nil or args[2] == nil then
+            DrawNotification2D("You must provide a pickup and destination location.", 2, "r")
+            return
+        end
+
+        local heliPadPickupCoords = HeliPadLocations[args[1]].coords
+        local vectorPickupLocation = vector3(heliPadPickupCoords.x, heliPadPickupCoords.y, heliPadPickupCoords.z)
+        local heliPadDestCoords = HeliPadLocations[args[2]].coords
+        local vectorDestLocation = vector3(heliPadDestCoords.x, heliPadDestCoords.y, heliPadDestCoords.z)
+
+        local cancelDistance = #(GetEntityCoords(PlayerPedId(), false) - vectorPickupLocation)
+        if cancelDistance > Config.cancelRadius then
+            DrawNotification2D(Config.Locales["notNearPickupZone"], 2, "r")
+            return
+        end
+
+        startAirService(vectorPickupLocation, vectorDestLocation)
+    else
+        local playerPed = PlayerPedId()
+        local playerCoords = GetEntityCoords(playerPed, false)
+
+        startAirService(playerCoords)
+    end
 end, false)
 
+Citizen.CreateThread(function()
+    local loadFile = LoadResourceFile(GetCurrentResourceName(), "config/HeliPads.json")
+    local extract = {}
+    extract = json.decode(loadFile)
 
+    for _, helipad in ipairs(extract) do
+        HeliPadLocations[helipad.name] = helipad
+    end
 
-TriggerEvent('chat:addSuggestion', '/callheli', 'Will call a heli to your location')
+    local resultString = table.concat(table.keys(HeliPadLocations), ', ')
+
+    if Config.requireNearHeliPad then
+        TriggerEvent('chat:addSuggestion', '/callheli',
+            "Specify pickup and destination for direct heli pad-to-pad transport.",
+            {
+                { name = "PICKUP",      help = resultString },
+                { name = "DESTINATION", help = resultString },
+            })
+    else
+        TriggerEvent('chat:addSuggestion', '/callheli',
+            "Specify pickup and destination for direct heli pad-to-pad transport. Otherwise, we'll come to you, and you can set a waypoint for the destination.",
+            {
+                { name = "PICKUP",      help = resultString },
+                { name = "DESTINATION", help = resultString },
+            })
+    end
+end)
+
+RegisterNetEvent("FearlessStudios-SwiftRideService:MoneyCheckResult", function(hasMoney, destination)
+    print(IsHeliService)
+    if not IsHeliService then
+        return
+    end
+
+    if hasMoney then
+        continueAirService(destination)
+    else
+        noMoney = true
+        cancelRide(PlayerPedId(), false)
+    end
+end)

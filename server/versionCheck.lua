@@ -1,11 +1,11 @@
 local authorName = 'FearlessStudios' -- Your author name
-local resourceName = 'SwiftRideService' -- The name of your FiveM resource
+local resourceName = 'TransitHub' -- The name of your FiveM resource
 local fullName = '^3[' .. authorName .. '-' .. resourceName .. '] '
 
 -- Github info to check the version
 local githubUsername = 'FearlessNite345' -- Your GitHub username
 local githubRepo = 'FearlessStudios-VersionChecker' -- Your GitHub repository name
-local githubVersionFilename = 'swiftrideservice-version.txt' -- The filename on GitHub containing the version information
+local githubVersionFilename = 'transithub-version.txt' -- The filename on GitHub containing the version information
 
 local function printVersion(cur, late, status)
     print('^7----------------------------------------------------------')
