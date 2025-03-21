@@ -1,3 +1,5 @@
+FS_Lib = exports['FS-Lib']
+
 function table.keys(tbl)
     local keys = {}
     for key, _ in pairs(tbl) do
@@ -6,8 +8,30 @@ function table.keys(tbl)
     return keys
 end
 
+local lastSpeed = {} -- Store last applied speed per driver
+
+function AdjustCruiseSpeed(driver, vehicle, destinationCoords, ranges, speeds)
+    local rideCoords = GetEntityCoords(vehicle, false)
+    local dist = #(rideCoords - destinationCoords)
+
+    for i, range in ipairs(ranges) do
+        if dist < range then
+            local newSpeed = speeds[i]
+
+            -- Check if the speed is different from the last applied speed
+            if lastSpeed[driver] ~= newSpeed then
+                print(range)
+                SetDriveTaskCruiseSpeed(driver, newSpeed)
+                lastSpeed[driver] = newSpeed
+            end
+            
+            break
+        end
+    end
+end
+
 function ShowInfo(infoText, yPos, scale)
-    DrawText2D(0.015, yPos, infoText, scale, false)
+    FS_Lib:DrawText2D(0.015, yPos, infoText, scale, false)
 end
 
 function GetNumSeats(veh)
@@ -50,51 +74,36 @@ function GetClosestVehicleDoor(ped, veh)
     return closestDoor
 end
 
-function GetDistanceToDestText(yourCoords, destCoords)
-    local dist = math.floor(#(yourCoords - destCoords)) -- Round down the distance value
-    local distText = ""
+-- New helper to format distance values.
+function FormatDistance(dist)
     if ShouldUseMetricMeasurements() then
         if dist <= 1000 then
-            distText = dist .. "m"
+            return string.format("%dm", dist)
         else
-            distText = tonumber(string.format("%.2f", dist / 1000)) .. "km"
+            return string.format("%.2fkm", dist / 1000)
         end
     else
-        dist = math.floor((dist * 1.094) * 3) -- Distance in feet
-        if dist <= 500 then
-            distText = dist .. "ft"
+        local feet = math.floor((dist * 1.094) * 3) -- converting to feet
+        if feet <= 500 then
+            return string.format("%dft", feet)
         else
-            distText = tonumber(string.format("%.2f", dist / 5280)) .. "mi"
+            return string.format("%.2fmi", feet / 5280)
         end
     end
+end
 
-    return distText
+function GetDistanceToDestText(yourCoords, destCoords)
+    local dist = math.floor(#(yourCoords - destCoords)) -- Round down the distance value
+    return FormatDistance(dist)
 end
 
 function GetFormatedDistanceText(distanceInMeters)
-    local distText = ""
-    if ShouldUseMetricMeasurements() then
-        if distanceInMeters <= 1000 then
-            distText = distanceInMeters .. "m"
-        else
-            distText = tonumber(string.format("%.2f", distanceInMeters / 1000)) .. "km"
-        end
-    else
-        distanceInMeters = math.floor((distanceInMeters * 1.094) * 3) -- Distance in feet
-        if distanceInMeters <= 500 then
-            distText = distanceInMeters .. "ft"
-        else
-            distText = tonumber(string.format("%.2f", distanceInMeters / 5280)) .. "mi"
-        end
-    end
-
-    return distText
+    return FormatDistance(distanceInMeters)
 end
 
 function SetupModel(model)
     RequestModel(model)
     while not HasModelLoaded(model) do
-        RequestModel(model)
         Citizen.Wait(0)
     end
     SetModelAsNoLongerNeeded(model)
@@ -105,7 +114,7 @@ function RandomLimited(min, max, limit)
     repeat
         result = math.random(min, max)
     until math.abs(result) >= limit
-    print(result)
+    -- Remove print if not needed in production
     return result
 end
 
@@ -114,7 +123,7 @@ function DrawNotification3D(coords, text, seconds, color)
     local duration = seconds * 1000
 
     while GetGameTimer() - startTime < duration do
-        DrawText3D(coords.x, coords.y, coords.z, 0.6, '~' .. color .. '~' .. text)
+        FS_Lib:DrawText3D(coords.x, coords.y, coords.z, 0.6, '~' .. color .. '~' .. text)
         Citizen.Wait(0)
     end
 end
@@ -124,37 +133,7 @@ function DrawNotification2D(text, seconds, color)
     local duration = seconds * 1000
 
     while GetGameTimer() - startTime < duration do
-        DrawText2D(0.5, 0.8, '~' .. color .. '~' .. text, 0.6, true)
+        FS_Lib:DrawText2D(0.5, 0.8, '~' .. color .. '~' .. text, 0.6, true)
         Citizen.Wait(0)
     end
-end
-
-function DrawText3D(x, y, z, scale, text)
-    local onScreen, _x, _y = World3dToScreen2d(x, y, z)
-
-    if onScreen then
-        SetTextScale(scale, scale)
-        SetTextFont(4)
-        SetTextProportional(true)
-        SetTextEntry("STRING")
-        SetTextCentre(true)
-        SetTextColour(255, 255, 255, 255)
-        SetTextOutline()
-        AddTextComponentString(text)
-        DrawText(_x, _y)
-    end
-end
-
-function DrawText2D(x, y, text, scale, center)
-    SetTextFont(4)
-    SetTextProportional(true)
-    SetTextScale(scale, scale)
-    SetTextColour(255, 255, 255, 255)
-    SetTextDropShadow()
-    SetTextEdge(4, 0, 0, 0, 255)
-    SetTextOutline()
-    if center then SetTextJustification(0) end
-    SetTextEntry("STRING")
-    AddTextComponentString(text)
-    DrawText(x, y)
 end

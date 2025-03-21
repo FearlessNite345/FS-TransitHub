@@ -1,12 +1,15 @@
 IsRidingInOtherVehicle = false
+FS_Lib = exports['FS-Lib']
 
 local activeRides = {}
 local closestRideVehicle, closestRideDistance
-local currentRideOwner
+local currentRideOwner = nil
+local isHeliService = false
 
-RegisterNetEvent("FearlessStudios-SwiftRideService:RegisterActiveRide", function(vehNetID, rideOwner)
+RegisterNetEvent("FearlessStudios-SwiftRideService:RegisterActiveRide", function(vehNetID, rideOwner, isHeli)
     print("Trying to add ride")
     currentRideOwner = rideOwner
+    isHeliService = isHeli
 
     if PlayerPedId() == currentRideOwner then
         return
@@ -28,26 +31,25 @@ RegisterNetEvent("FearlessStudios-SwiftRideService:RemoveActiveRide", function(v
     print("Ride with netID " .. vehNetIDToRemove .. " not found")
 end)
 
-RegisterNetEvent("FearlessStudios-SwiftRideService:ExitRide", function()
+RegisterNetEvent("FearlessStudios-SwiftRideService:ExitRide", function(vehNetID)
     local playerPed = PlayerPedId()
 
-    TaskLeaveVehicle(playerPed, GetVehiclePedIsIn(playerPed, false), 0)
+    if GetVehiclePedIsIn(playerPed, false) == NetworkGetEntityFromNetworkId(vehNetID) then
+        TaskLeaveVehicle(playerPed, GetVehiclePedIsIn(playerPed, false), 0)
+    end
 end)
 
-Citizen.CreateThread(function()
+CreateThread(function()
     while true do
-        Citizen.Wait(0)
-        --print(#activeRides)
+        Wait(0)
 
         if #activeRides > 0 and not IsServiceActive and not IsPedInAnyVehicle(PlayerPedId(), true) and not IsRidingInOtherVehicle then
             local playerCoords = GetEntityCoords(PlayerPedId(), false)
 
             closestRideVehicle, closestRideDistance = GetClosestVehicleInRangeWithCheck(playerCoords, 10.0)
 
-            print(closestRideVehicle, closestRideDistance)
-
             if closestRideVehicle ~= nil then
-                DrawText2D(0.5, 0.8,
+                FS_Lib:DrawText2D(0.5, 0.8,
                     '~w~[~g~' .. GetKeyStringFromKeyID(Config.getInKey) .. '~w~]' .. Config.Locales["enterVehicle"], 0.6,
                     true)
 
@@ -57,25 +59,57 @@ Citizen.CreateThread(function()
                 if IsControlJustPressed(0, Config.getInKey) and closestDoor ~= nil then
                     TaskEnterVehicle(playerPed, closestRideVehicle, 10000, closestDoor.index, 2.0, 1, 0)
 
+                    local startTime = GetGameTimer()
+                    local timeout = 5000 -- 10 seconds
+
                     while not IsPedInAnyVehicle(playerPed, false) do
-                        Citizen.Wait(0)
+                        Wait(0)
+                        if (GetGameTimer() - startTime) > timeout then
+                            print("Timeout: failed to enter vehicle.")
+                            break
+                        end
                     end
 
-                    IsRidingInOtherVehicle = true
-                    TriggerServerEvent("FearlessStudios-SwiftRideService:AddPlayerToRide", currentRideOwner)
+                    if IsPedInAnyVehicle(playerPed, false) then
+                        IsRidingInOtherVehicle = true
+                        TriggerServerEvent("FearlessStudios-SwiftRideService:AddPlayerToRide", currentRideOwner)
+                    else
+                        -- Handle timeout/cleanup if needed
+                    end
                 end
             end
         end
 
-        if IsRidingInOtherVehicle and IsPedInAnyVehicle(PlayerPedId(), false) then
-            DrawText2D(0.5, 0.8,
+        if IsRidingInOtherVehicle and IsPedInAnyVehicle(PlayerPedId(), false) and not isHeliService then
+
+            FS_Lib:DrawText2D(0.5, 0.8,
                 '~w~[~r~' .. GetKeyStringFromKeyID(Config.cancelKey) .. '~w~]' .. Config.Locales["exitEarlyPassenger"],
                 0.6, true)
 
             if IsControlJustPressed(0, Config.cancelKey) and closestRideVehicle ~= nil then
-                TaskVehicleTempAction(GetPedInVehicleSeat(closestRideVehicle, -1), closestRideVehicle, 1, 30)
-                TaskLeaveVehicle(PlayerPedId(), closestRideVehicle, 0)
+                SetDriveTaskCruiseSpeed(GetPedInVehicleSeat(closestRideVehicle, -1), 0.00001)
+
+                local playerPed = PlayerPedId()
+
+                TaskLeaveVehicle(playerPed, closestRideVehicle, 0)
+
+                local exitStart = GetGameTimer()
+                local exitTimeout = 5000 -- 5 seconds
+
+                while IsPedInAnyVehicle(playerPed, false) do
+                    Wait(0)
+                    if (GetGameTimer() - exitStart) > exitTimeout then
+                        print("Timeout: failed to exit vehicle.")
+                        break
+                    end
+                end
+
                 TriggerServerEvent("FearlessStudios-SwiftRideService:RemovePlayerFromRide", currentRideOwner)
+
+                Wait(5000)
+
+                SetDriveTaskCruiseSpeed(GetPedInVehicleSeat(closestRideVehicle, -1), RideService.speedToDestination)
+
             end
         end
 
